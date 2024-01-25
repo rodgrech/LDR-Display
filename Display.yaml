@@ -1,0 +1,185 @@
+esphome:
+  name: mrd
+  friendly_name: Mancave Rack Display
+
+esp32:
+  board: micros2
+
+# Enable logging
+logger:
+  logs:
+    component: ERROR
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "onaN2pAxCxB8X7M98tWC6TZ4lS0UVR2m0HCrEj8/E4I="
+
+ota:
+
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: enable
+  manual_ip:
+      static_ip: 192.168.1.245
+      gateway: 192.168.1.1
+      subnet: 255.255.254.0
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Esphome-Web-59E240"
+    password: "qDZGXbLwKVuj"
+
+
+
+captive_portal:
+
+web_server:
+  port: 80
+
+spi:
+  clk_pin: GPIO14
+  mosi_pin: GPIO15
+
+display:
+  - platform: ili9xxx
+    model: "ILI9341"
+    cs_pin: GPIO5
+    dc_pin: GPIO16
+    reset_pin: GPIO17
+    rotation: 0
+    lambda: |- 
+      it.image((it.get_width() - id(ha_logo).get_width()) / 2, 0, id(ha_logo));
+            if (id(mancave_rack_temperature).state > 35) {
+        it.printf(0, 100, id(my_font), Color(255, 0, 0), TextAlign::TOP_LEFT, "Rack Temp: %.0f°C", id(mancave_rack_temperature).state);
+      } else {
+        it.printf(0, 100, id(my_font), Color(0, 255, 0), TextAlign::TOP_LEFT, "Rack Temp: %.0f°C", id(mancave_rack_temperature).state);
+      }
+      it.printf(0, 122, id(my_font), Color(0, 255, 0), TextAlign::TOP_LEFT, "Rack Humidity: %.0f%%", id(mancave_rack_humidity).state);
+      it.printf(0, 147, id(my_font), Color(0, 255, 0), TextAlign::TOP_LEFT, "Room Temp: %.0f°C", id(roomtemp).state);
+            if (id(ups1status).state.find("Online Trimming Voltage") != std::string::npos) {
+        it.printf(0, 172, id(my_font), Color(0, 255, 0), TextAlign::TOP_LEFT, "Mancave UPS: Online");
+      } else {
+        it.printf(0, 172, id(my_font), Color(0, 255, 0), TextAlign::TOP_LEFT, "Mancave UPS: %s", id(ups1status).state.c_str());
+      }
+            if (id(ups2status).state == "Online") {
+        it.printf(0, 197, id(my_font), Color(0, 255, 0), TextAlign::TOP_LEFT, "House UPS: %s", id(ups2status).state.c_str());
+      } else if (id(ups2status).state == "On Battery") {
+        it.printf(0, 197, id(my_font), Color(255, 165, 0), TextAlign::TOP_LEFT, "House UPS: %s", id(ups2status).state.c_str());
+      } else {
+        it.printf(0, 197, id(my_font), Color(255, 0, 0), TextAlign::TOP_LEFT, "House UPS: %s", id(ups2status).state.c_str());
+      }
+            if (id(ups3status).state == "Online") {
+        it.printf(0, 220, id(my_font), Color(0, 255, 0), TextAlign::TOP_LEFT, "Garage UPS: Online");
+      } else if (id(ups3status).state == "On Battery") {
+        it.printf(0, 220, id(my_font), Color(255, 165, 0), TextAlign::TOP_LEFT, "Garage UPS: On Battery");
+      } else if (id(ups3status).state == "unavailable" || id(ups3status).state == "") {
+        it.printf(0, 220, id(my_font), Color(255, 0, 0), TextAlign::TOP_LEFT, "Garage UPS: Offline");
+      } else {
+        it.printf(0, 220, id(my_font), Color(255, 0, 0), TextAlign::TOP_LEFT, "Garage UPS: %s", id(ups3status).state.c_str());
+      }
+      it.qr_code(0, 0, id(ha_qr), Color(255,255,255), 2);
+
+qr_code:
+  - id: ha_qr
+    value: http://192.168.1.104:8123/dashboard-tablet/communications
+font:
+  - file: "Arial.ttf"
+    id: my_font
+    size: 22
+image:
+  - file: "halogo.png"
+    id: ha_logo
+    type: RGB565
+    resize: 100x100
+sensor:
+  - platform: dht
+    pin: GPIO21
+    temperature:
+      name: "Mancave Rack Temperature"
+      id: mancave_rack_temperature
+      filters:
+        - round: 0
+    humidity:
+      name: "Mancave Rack Humidity"
+      id: mancave_rack_humidity
+      filters:
+        - round: 0
+    update_interval: 15s
+  - platform: homeassistant
+    name: "Macave Temp"
+    filters:
+        - round: 0
+    entity_id: sensor.temperature_humidity_sensor_18f0_temperature
+    id: roomtemp
+    internal: true
+
+  - platform: adc
+    pin: GPIO4
+    id: ldr
+    update_interval: 5s
+    filters:
+      - lambda: return (x / 4095.0) * 100.0;
+    on_value:
+      - logger.log: 
+         format: "The illumincance sensor reports value %.0f"
+         args: [ 'id(ldr).state' ]
+      - lambda: |- 
+          float lux = id(ldr).state;
+          if (lux < 15) 
+          { 
+            id(backlight).set_level(0.1);
+          }
+          else if (lux < 50)
+          {
+            id(backlight).set_level(0.3);
+          }
+          else if (lux < 125)
+          {
+            id(backlight).set_level(0.5);
+          }
+          else if (lux < 200)
+          {
+            id(backlight).set_level(0.6);
+          }
+          else
+          {
+            id(backlight).set_level(1);
+          }
+
+text_sensor: 
+  - platform: homeassistant
+    name: "Mancave UPS Status"
+    entity_id: sensor.hpt750_status
+    id: ups1status
+    internal: true
+  - platform: homeassistant
+    name: "House UPS Status"
+    entity_id: sensor.servers_status
+    id: ups2status
+    internal: true
+  - platform: homeassistant
+    name: "Garage UPS Status"
+    entity_id: sensor.defender_status
+    id: ups3status
+    internal: true
+#  - platform: homeassistant
+#    id: ac_current_mode
+#    entity_id: climate.ir_mancave_aircon
+#    internal: true
+output:
+  - platform: ledc
+    pin: GPIO13
+    id: ledc_output
+    max_power: 1
+    min_power: 0
+  
+light:
+  - platform: monochromatic
+    name: "Monochromatic Light"
+    output: ledc_output
+    id: backlight
+    restore_mode: RESTORE_DEFAULT_ON
+    default_transition_length: 250ms
