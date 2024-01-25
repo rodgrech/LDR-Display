@@ -124,29 +124,29 @@ sensor:
       - lambda: return (x / 4095.0) * 100.0;
     on_value:
       - logger.log: 
-         format: "The illumincance sensor reports value %.0f"
+         format: "The illuminance sensor reports value %.0f"
          args: [ 'id(ldr).state' ]
       - lambda: |- 
           float lux = id(ldr).state;
           if (lux < 15) 
           { 
-            id(backlight).set_level(0.1);
+            id(ledc_output).set_level(0.1);
           }
           else if (lux < 50)
           {
-            id(backlight).set_level(0.3);
+            id(ledc_output).set_level(0.3);
           }
           else if (lux < 125)
           {
-            id(backlight).set_level(0.5);
+            id(ledc_output).set_level(0.5);
           }
           else if (lux < 200)
           {
-            id(backlight).set_level(0.6);
+            id(ledc_output).set_level(0.6);
           }
           else
           {
-            id(backlight).set_level(1);
+            id(ledc_output).set_level(1);
           }
 
 text_sensor: 
